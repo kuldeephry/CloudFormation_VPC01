@@ -1,0 +1,219 @@
+Parameters:
+  EnvironmentName: 
+    Description: Please enter the env name
+    Type: String
+    AllowedValues:
+      - dev
+      - test
+      - uat
+      - prod
+  VpcCIDR: 
+    Description: Enter a valid CIDR block
+    Type: String
+    Default: 10.0.0.0/16
+  PublicSubnet1CIDR:
+    Description: Enter Valid CIDR for Public SN
+    Type: String
+    Default: 10.0.0.0/24
+  PublicSubnet2CIDR:
+    Description: Enter valid CIDR for Public SN2
+    Type: String
+    Default: 10.0.1.0/24
+  PrivateSubnet1CIDR:
+    Description: Enter Valid CIDR for Private SN
+    Type: String
+    Default: 10.0.2.0/24
+  PrivateSubnet2CIDR:
+    Description: Enter valid CIDR for Private SN2
+    Type: String
+    Default: 10.0.3.0/24
+Resources:
+  myVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+ ## InternetGateWay and NatGateway Creation and Attachment 
+  myInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName} - IGW
+  myIGAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref myVPC
+      InternetGatewayId: !Ref myInternetGateway
+  myNatEip1:
+    Type: AWS::EC2::EIP
+    DependsOn: myIGAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName} - Eip1
+  myNatEip2:
+    Type: AWS::EC2::EIP
+    DependsOn: myIGAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName} - Eip2
+  myNATGW01:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt [myNatEip1, AllocationId]
+      SubnetId: !Ref myPublicSubnet01
+      Tags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName} - Ngw01
+  myNATGW02:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt [myNatEip2, AllocationId]
+      SubnetId: !Ref myPublicSubnet02
+      Tags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName} - Ngw02
+
+## Public and Private Subnets
+  myPublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+  myPublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+       - Key: Name
+         Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+  myPrivateSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+  myPrivateSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+       - Key: Name
+         Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+
+## Public RouteTable, Routes Creation and Association
+  myPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PublicRT
+  myInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: myIGAttachment
+    Properties:
+      RouteTableId: !Ref myPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref myInternetGateway
+  myPublicSNRTAssoc01:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPublicSubnet01
+      RouteTableId: !Ref myPublicRouteTable
+  myPublicSNRTAssoc02:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPublicSubnet02
+      RouteTableId: !Ref myPublicRouteTable
+
+## Private RouteTable, Routes Creation and Association
+  myPrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PrivateRT
+  myPrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PrivateRT
+  myPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myPrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref myNATGW01
+  myPrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myPrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref myNATGW02
+  myPrivateSNRTAssoc01:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPrivateSubnet01
+      RouteTableId: !Ref myPrivateRouteTable1
+  myPrivateSNRTAssoc02:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPrivateSubnet02
+      RouteTableId: !Ref myPrivateRouteTable2
+
+## Outputs
+Outputs:
+  VPC:
+    Description: A ref to the created VPC
+    Value: !Ref myVPC
+  myPublicSubnet01OP:
+    Description: A ref to the created public subnet
+    Value: !Ref myPublicSubnet01
+  myPublicSubnet02OP:
+    Description: A ref to the created public subnet
+    Value: !Ref myPublicSubnet02
+  myPrivateubnet01OP:
+    Description: A ref to the created private subnet
+    Value: !Ref myPrivateSubnet01
+  myPrivateubnet02OP:
+    Description: A ref to the created private subnet
+    Value: !Ref myPrivateSubnet02
+  PublicSubnets:
+    Description: A ref to the created Public subnets
+    Value: !Join [ " ", [ !Ref myPublicSubnet01, !Ref myPublicSubnet02 ]]
+  PrivateSubnets:
+    Description: A ref to the created Private subnets
+    Value: !Join [ " ", [ !Ref myPrivateSubnet01, !Ref myPrivateSubnet02 ]]
+  IGWandNGWOutputs:
+    Description: IGW and NGW output
+    Value: !Join [" ", [!Ref myInternetGateway, !Ref myNATGW01, !Ref myNATGW02]] 
+  RTOutputs:
+    Description: RTables Output
+    Value: !Join [" ", [!Ref myPublicRouteTable, !Ref myPrivateRouteTable1,!Ref myPrivateRouteTable2] ]

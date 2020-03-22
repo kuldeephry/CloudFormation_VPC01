@@ -1,0 +1,66 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This is a Master CloudFormation Template
+Parameters:
+  EnvironmentName: 
+    Description: Please enter the env name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - uat
+      - prod
+  ## VPC Stack Params
+  VpcCIDR: 
+    Description: Enter a valid CIDR block
+    Type: String
+    Default: 10.0.0.0/16
+  PublicSubnet1CIDR:
+    Description: Enter Valid CIDR for Public SN
+    Type: String
+    Default: 10.0.0.0/24
+  PublicSubnet2CIDR:
+    Description: Enter valid CIDR for Public SN2
+    Type: String
+    Default: 10.0.1.0/24
+  PrivateSubnet1CIDR:
+    Description: Enter Valid CIDR for Private SN
+    Type: String
+    Default: 10.0.2.0/24
+  PrivateSubnet2CIDR:
+    Description: Enter valid CIDR for Private SN2
+    Type: String
+    Default: 10.0.3.0/24
+
+Resources:
+  myVPCSetupStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        VpcCIDR: !Ref VpcCIDR
+        EnvironmentName: !Ref EnvironmentName
+        PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+        PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+        PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+        PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+      TemplateURL: "https://mys3bucketnamehere.amazonaws.com/vpc-setup.yaml"
+      TimeoutInMinutes: '10'
+  
+Outputs:
+  myVPCOutput:
+    Description: VPC ID Output
+    Value: !GetAtt 'myVPCSetupStack.Outputs.VPC'
+  PublicSNOutput:
+    Description: Public SN's Output
+    Value: !GetAtt 'myVPCSetupStack.Outputs.PublicSubnets'
+  PrivateSNOutput:
+    Description: Private SNs Output
+    Value: !GetAtt 'myVPCSetupStack.Outputs.PrivateSubnets'
+  IGWandNGWOutputs:
+    Description: IGW and NGW IDs
+    Value: !GetAtt 'myVPCSetupStack.Outputs.IGWandNGWOutputs'
+
+
+
+ 
